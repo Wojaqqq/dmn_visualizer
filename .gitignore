@@ -1,0 +1,8 @@
+SimpleHTR/data/words*
+SimpleHTR/data/words.txt
+SimpleHTR/src/__pycache__/
+SimpleHTR/notes/
+*.so
+*.pyc
+SimpleHTR/.idea/
+SimpleHTR/dump/
