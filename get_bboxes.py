@@ -2,7 +2,8 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
-from utils import load_label_map
+import time
+from utils import load_label_map, make_dir
 
 
 def process_image(image, width, height):
@@ -46,15 +47,15 @@ def detect_bboxes(img_path, model, label_map, confidence_threshold, input_width,
 
             bbox_info = (label_map[class_id], int(x_min), int(y_min), int(x_max), int(y_max))
             detected_data.append(bbox_info)
-
+            cv2.rectangle(image, (int(x_min), int(y_min)), (int(x_max), int(y_max)), (0, 255, 0), 1)
+            cv2.putText(image, label_map[class_id], (int(x_min), int(y_min - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                        (0, 255, 0), 1)
             if verbose:
-                print(f'Class: {label_map[class_id]}, Score: {score}, BBox: {(int(x_min), int(y_min)), (int(x_max), int(y_max))}')
-                cv2.rectangle(image, (int(x_min), int(y_min)), (int(x_max), int(y_max)), (0, 255, 0), 1)
-                cv2.putText(image, label_map[class_id], (int(x_min), int(y_min - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
-                            (0, 255, 0), 1)
-
+                print(f'Class: {label_map[class_id]}, Score: {score}, BBox: ({int(x_min), int(y_min), int(x_max), int(y_max)})')
+    plt.figure(figsize=(10, 10))
+    make_dir('output')
+    cv2.imwrite(fr'output/detections_{time.time()}.jpg', image)
     if verbose:
-        plt.figure(figsize=(10, 10))
         plt.imshow(image)
         plt.show()
     return detected_data

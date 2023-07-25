@@ -1,4 +1,11 @@
 import subprocess
+import os
+import time
+
+
+def make_dir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 
 def load_label_map(label_map_path):
@@ -15,11 +22,14 @@ def load_label_map(label_map_path):
 
 def simpleHTR_word_detector(img):
     """
-    Run via subprocess handwritten word detection from https://github.com/githubharald/SimpleHTR.git
+    Running through a subprocess of the modified handwritten word detection script from the https://github.com/githubharald/SimpleHTR.git
     """
-    # TODO add logs with sterr
-    process = subprocess.run(['python', r'SimpleHTR\src\main.py', '--img_file', img],
-                             stdout=subprocess.PIPE,
-                             universal_newlines=True)
+    make_dir('logs')
+    log_file_path = os.path.join('logs', f'word_detector_log_{time.time()}.txt')
+    with open(log_file_path, 'a') as log_file:
+        process = subprocess.run(['python', r'SimpleHTR\src\main.py', '--img_file', img],
+                                 stdout=subprocess.PIPE,
+                                 stderr=log_file,
+                                 universal_newlines=True)
     output = process.stdout.strip().split(';')
     return output[0], output[1]

@@ -1,5 +1,6 @@
 import argparse
 import pickle
+import sys
 
 import cv2
 import lmdb
@@ -19,7 +20,7 @@ fn_imgs = list((args.data_dir / 'img').walkfiles('*.png'))
 # and put the imgs into lmdb as pickled grayscale imgs
 with env.begin(write=True) as txn:
     for i, fn_img in enumerate(fn_imgs):
-        print(i, len(fn_imgs))
+        print(i, len(fn_imgs), file=sys.stderr)
         img = cv2.imread(fn_img, cv2.IMREAD_GRAYSCALE)
         basename = fn_img.basename()
         txn.put(basename.encode("ascii"), pickle.dumps(img))

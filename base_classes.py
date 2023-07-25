@@ -1,27 +1,32 @@
 import os
 import xml.etree.ElementTree as ET
 from get_bboxes import detect_bboxes
-from utils import load_label_map, simpleHTR_word_detector
+from utils import load_label_map, simpleHTR_word_detector, make_dir
 import cv2
 import time
 
 
 class Element:
-    def __init__(self, element_id, name, bbox, img):
-        self.element_id = element_id
+    def __init__(self, _id, name, bbox, img, connection=None):
+        self._id = _id
         self.bbox = bbox
         self.img = img
         self.crop_threshold = 20
         self.save_crop_img = True
+        self.connection=connection
         self.name = self.extract_text(name)
+
+    @property
+    def id(self):
+        return self._id
 
     def extract_text(self, name):
         if name.startswith('text'):
             image = cv2.imread(self.img, cv2.IMREAD_GRAYSCALE)
             crop_img = image[self.bbox[1] - self.crop_threshold: self.bbox[3] + self.crop_threshold,
                              self.bbox[0] - self.crop_threshold: self.bbox[2] + self.crop_threshold]
-            if not os.path.exists('tmp'):
-                os.makedirs('tmp')
+
+            make_dir('tmp')
             crop_image_path = f"./tmp/text_crop_image_{time.time()}.jpg"
             cv2.imwrite(crop_image_path, crop_img)
             text, probability = simpleHTR_word_detector(crop_image_path)
@@ -35,7 +40,7 @@ class Element:
             return name
 
     def __str__(self):
-        return f"Element(Id: {self.element_id}, Name: {self.name}, Bbox: {self.bbox})"
+        return f"Element(Id: {self._id}, Name: {self.name}, Bbox: {self.bbox})"
 
 
 class GraphImage:

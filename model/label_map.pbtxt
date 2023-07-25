@@ -1,0 +1,39 @@
+item {
+    id: 1
+    name: 'node_decision'
+}
+
+item {
+    id: 2
+    name: 'node_input_data'
+}
+
+item {
+    id: 3
+    name: 'node_knowledge_source'
+}
+
+item {
+    id: 4
+    name: 'node_knowledge_model'
+}
+
+item {
+    id: 5
+    name: 'arrow_information_requirement'
+}
+
+item {
+    id: 6
+    name: 'arrow_knowledge_requirement'
+}
+
+item {
+    id: 7
+    name: 'arrow_authority_requirement'
+}
+
+item {
+    id: 8
+    name: 'text'
+}

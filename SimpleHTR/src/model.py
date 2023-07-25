@@ -147,8 +147,8 @@ class Model:
 
     def setup_tf(self) -> Tuple[tf.compat.v1.Session, tf.compat.v1.train.Saver]:
         """Initialize TF."""
-        # print('Python: ' + sys.version)
-        # print('Tensorflow: ' + tf.__version__)
+        print('Python: ' + sys.version, file=sys.stderr)
+        print('Tensorflow: ' + tf.__version__, file=sys.stderr)
 
         sess = tf.compat.v1.Session()  # TF session
 
@@ -162,10 +162,10 @@ class Model:
 
         # load saved model if available
         if latest_snapshot:
-            # print('Init with stored values from ' + latest_snapshot)
+            print('Init with stored values from ' + latest_snapshot, file=sys.stderr)
             saver.restore(sess, latest_snapshot)
         else:
-            # print('Init with new values')
+            print('Init with new values', file=sys.stderr)
             sess.run(tf.compat.v1.global_variables_initializer())
 
         return sess, saver
@@ -242,7 +242,7 @@ class Model:
                     csv += str(rnn_output[t, b, c]) + ';'
                 csv += '\n'
             fn = dump_dir + 'rnnOutput_' + str(b) + '.csv'
-            print('Write dump of NN to file: ' + fn)
+            print('Write dump of NN to file: ' + fn, file=sys.stderr)
             with open(fn, 'w') as f:
                 f.write(csv)
 

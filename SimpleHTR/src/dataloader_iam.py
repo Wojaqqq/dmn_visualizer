@@ -56,7 +56,7 @@ class DataLoaderIAM:
             file_name = data_dir / 'img' / file_name_subdir1 / file_name_subdir2 / file_base_name
 
             if line_split[0] in bad_samples_reference:
-                print('Ignoring known broken image:', file_name)
+                print('Ignoring known broken image:', file_name, file=sys.stderr)
                 continue
 
             # GT text are columns starting at 9

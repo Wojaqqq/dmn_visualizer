@@ -6,3 +6,8 @@ SimpleHTR/notes/
 *.pyc
 SimpleHTR/.idea/
 SimpleHTR/dump/
+tmp
+output
+logs
+model/checkpoint
+model/saved_model

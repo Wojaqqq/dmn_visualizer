@@ -1,4 +1,5 @@
-from classes import GraphImage
+from base_classes import GraphImage
+from XMLCreator import XMLCreator
 from pathlib import Path
 import argparse
 
@@ -31,18 +32,22 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main():
+def dmn_visualizer():
     args = parse_args()
-    img = r'C:\Users\ttwoj\PycharmProjects\local_dmn_visualizer\data\dmn_ex01_001.jpeg'
+
+
+if __name__ == "__main__":
+    img = r'data/dmn_ex01_001.jpeg'
     verbose = True
     label_map = r'model/label_map.pbtxt'
     model = r'model/saved_model'
     graph = GraphImage(img, model, label_map, verbose=verbose)
     elements = graph.parse_elements()
+    # TODO bound arrows and text to elements
+    output = Path('output')
 
     for e in elements:
         print(e)
 
-
-if __name__ == "__main__":
-    main()
+    creator = XMLCreator(elements, "Custom name", output)
+    creator.create_xml()
