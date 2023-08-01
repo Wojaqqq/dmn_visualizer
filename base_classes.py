@@ -4,16 +4,22 @@ from get_bboxes import detect_bboxes
 from utils import load_label_map, simpleHTR_word_detector, make_dir
 import cv2
 import time
+from pathlib import Path
+
+from autocorrect import Speller
+from spellchecker import SpellChecker
 
 
 class Element:
-    def __init__(self, _id, name, bbox, img, connection=None):
+    def __init__(self, _id, name, bbox, img, source=None, target=None):
         self._id = _id
         self.bbox = bbox
-        self.img = img
-        self.crop_threshold = 20
-        self.save_crop_img = True
-        self.connection=connection
+        self.img_path = img
+        self.crop_threshold = 10
+        # TODO change
+        self.save_crop_img = False
+        self.source = source
+        self.target = target
         self.name = self.extract_text(name)
 
     @property
@@ -21,39 +27,57 @@ class Element:
         return self._id
 
     def extract_text(self, name):
+        # TODO commented for testing purposes
         if name.startswith('text'):
-            image = cv2.imread(self.img, cv2.IMREAD_GRAYSCALE)
-            crop_img = image[self.bbox[1] - self.crop_threshold: self.bbox[3] + self.crop_threshold,
-                             self.bbox[0] - self.crop_threshold: self.bbox[2] + self.crop_threshold]
+            image = cv2.imread(str(self.img_path), cv2.IMREAD_GRAYSCALE)
+            bbox = list(self.bbox)
+            crop_img = image[bbox[1] - self.crop_threshold: bbox[3] + self.crop_threshold,
+                             bbox[0] - self.crop_threshold: bbox[2] + self.crop_threshold]
 
             make_dir('tmp')
-            crop_image_path = f"./tmp/text_crop_image_{time.time()}.jpg"
-            cv2.imwrite(crop_image_path, crop_img)
-            text, probability = simpleHTR_word_detector(crop_image_path)
+            # TODO change img
+            # crop_img_path = f"./tmp/text_crop_image_{time.time()}.jpg"
+            crop_img_path = f"./tmp/text_crop_image_{time.time()}_{Path(self.img_path).stem}.jpg"
+            cv2.imwrite(crop_img_path, crop_img)
+            text, probability = simpleHTR_word_detector(crop_img_path)
             if not self.save_crop_img:
-                os.remove(crop_image_path)
+                os.remove(crop_img_path)
+            # TODO adjust threshold
             if float(probability) > 0.1:
+
+                # TODO resolve spell checking
+                # print(f"\n ORIGINAL WORD: {text} ...")
+                #
+                # spell = Speller(lang='en')
+                # corrected_sentence = " ".join([spell(w) for w in text.split()])
+                # print(f"speller: {corrected_sentence}")
+                #
+                # spell = SpellChecker()
+                # corrected_sentence = " ".join([spell.correction(w) for w in text.split() if spell.correction(w) is not None])
+                # print(f"spellchecker: {corrected_sentence}\n")
+
                 return text
             else:
                 return name
-        else:
-            return name
+        return name
 
     def __str__(self):
-        return f"Element(Id: {self._id}, Name: {self.name}, Bbox: {self.bbox})"
+        if self.source is None and self.target is None:
+            return f"Element(Id: {self._id}, Name: {self.name}, Bbox: {self.bbox})"
+        return f"Element(Id: {self._id}, Name: {self.name}, Bbox: {self.bbox}, Source: {self.source}, Target: {self.target})"
 
 
 class GraphImage:
-    def __init__(self, img, model, label_map, confidence_threshold=0.3, verbose=False, input_width=640,
+    def __init__(self, img_path, model, label_map, confidence_threshold=0.3, verbose=False, input_width=640,
                  input_height=640):
-        self.img = img
+        self.img_path = img_path
         self.model = model
         self.label_map = label_map
         self.confidence_threshold = confidence_threshold
         self.verbose = verbose
         self.input_width = input_width
         self.input_height = input_height
-        self.detected_data = detect_bboxes(self.img, self.model, self.label_map, self.confidence_threshold,
+        self.detected_data = detect_bboxes(self.img_path, self.model, self.label_map, self.confidence_threshold,
                                            self.input_width, self.input_height, self.verbose)
 
     def parse_elements(self):
@@ -61,9 +85,9 @@ class GraphImage:
         lbl_map = load_label_map(self.label_map)
         class_counter = {elem: 0 for elem in lbl_map.values()}
         for data in self.detected_data:
-            tag, *bbox = data
+            tag, bbox = data
             tag = f"{tag}_{class_counter[tag]}"
-            elements.append(Element(tag, tag, bbox, self.img))
+            elements.append(Element(tag, tag, bbox, self.img_path))
             class_counter[data[0]] += 1
         return elements
 
@@ -72,7 +96,7 @@ class XMLParser:
     def __init__(self, file_path, img):
         self.file_path = file_path
         self.root = self.load_xml()
-        self.img = img
+        self.img_path = img
 
     def load_xml(self):
         tree = ET.parse(self.file_path)
@@ -98,6 +122,6 @@ class XMLParser:
         for key, values in object_dict.items():
             for i, bbox in enumerate(values):
                 tag = f"{key}_{i}"
-                elements.append(Element(tag, tag, bbox, self.img))
+                elements.append(Element(tag, tag, bbox, self.img_path))
 
         return elements
