@@ -1,4 +1,4 @@
-# dmn_visualizer
+# Dmn Visualizer
 
 Project developed for the completion of the Master's degree.
 
