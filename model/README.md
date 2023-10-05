@@ -1,2 +1,2 @@
-Model created by author with Tensorflow Model Garden https://github.com/tensorflow/models.git.
-Download model from [this link](https://dl.dropboxusercontent.com/s/random_characters/your_model) and move it to the model directory.
+Model created by author with Tensorflow Model Garden -  [models](https://github.com/tensorflow/models) 
+Download model from [this link](https://drive.google.com/drive/folders/1DfO4WJb3h8rCiO8LThvFJkIOEWHDBRKz?usp=sharing) and move it to the model directory.
