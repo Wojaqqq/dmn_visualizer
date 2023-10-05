@@ -18,7 +18,7 @@ The tool is engineered to analyze images containing Decision Model and Notation 
 ```bash
 conda env create -f conda_environment.yaml
 ```
-4. Download the trained model from [this link](https://dl.dropboxusercontent.com/s/random_characters/your_model) and move it to the `model` directory.
+4. Download the trained model from [this link](https://drive.google.com/drive/folders/1DfO4WJb3h8rCiO8LThvFJkIOEWHDBRKz?usp=sharing) and move it to the `model` directory.
 
 
 
@@ -47,5 +47,5 @@ python dmn_visualizer.py --img_file path/to/test_image.jpg --output path/to/outp
 
 ## Related
 
-* [Dataset with annotations](https://repositum.tuwien.ac.at/obvutwhs/download/pdf/2874742)
+* [Dataset with annotations](https://github.com/Wojaqqq/hdDMN)
 * [HTR model used in project](https://github.com/githubharald/SimpleHTR)
