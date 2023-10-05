@@ -2,12 +2,13 @@ import os
 import xml.etree.ElementTree as ET
 from get_bboxes import detect_bboxes
 from utils import load_label_map, simpleHTR_word_detector, make_dir
+from spellchecker import SpellChecker
 import cv2
 import time
 from pathlib import Path
+import logging
 
-from autocorrect import Speller
-from spellchecker import SpellChecker
+logger = logging.getLogger()
 
 
 class Element:
@@ -16,7 +17,7 @@ class Element:
         self.bbox = bbox
         self.img_path = img
         self.crop_threshold = 10
-        # TODO change
+        self.word_probability_threshold = 0.1
         self.save_crop_img = False
         self.source = source
         self.target = target
@@ -27,7 +28,6 @@ class Element:
         return self._id
 
     def extract_text(self, name):
-        # TODO commented for testing purposes
         if name.startswith('text'):
             image = cv2.imread(str(self.img_path), cv2.IMREAD_GRAYSCALE)
             bbox = list(self.bbox)
@@ -35,29 +35,19 @@ class Element:
                              bbox[0] - self.crop_threshold: bbox[2] + self.crop_threshold]
 
             make_dir('tmp')
-            # TODO change img
-            # crop_img_path = f"./tmp/text_crop_image_{time.time()}.jpg"
             crop_img_path = f"./tmp/text_crop_image_{time.time()}_{Path(self.img_path).stem}.jpg"
             cv2.imwrite(crop_img_path, crop_img)
             text, probability = simpleHTR_word_detector(crop_img_path)
+            logger.info(f"Detected text: {text} in element: {self.id} with probability: {probability}")
             if not self.save_crop_img:
                 os.remove(crop_img_path)
-            # TODO adjust threshold
-            if float(probability) > 0.1:
-
-                # TODO resolve spell checking
-                # print(f"\n ORIGINAL WORD: {text} ...")
-                #
-                # spell = Speller(lang='en')
-                # corrected_sentence = " ".join([spell(w) for w in text.split()])
-                # print(f"speller: {corrected_sentence}")
-                #
-                # spell = SpellChecker()
-                # corrected_sentence = " ".join([spell.correction(w) for w in text.split() if spell.correction(w) is not None])
-                # print(f"spellchecker: {corrected_sentence}\n")
-
-                return text
+            if float(probability) > self.word_probability_threshold:
+                spell = SpellChecker()
+                corrected_sentence = " ".join([spell.correction(w) for w in text.split() if spell.correction(w) is not None])
+                logger.info(f"Text: {text} changed with spellchecker to {corrected_sentence}")
+                return corrected_sentence
             else:
+                logger.info(f"Detected text: {text} with probability: {probability} - cannot replace")
                 return name
         return name
 
@@ -65,6 +55,12 @@ class Element:
         if self.source is None and self.target is None:
             return f"Element(Id: {self._id}, Name: {self.name}, Bbox: {self.bbox})"
         return f"Element(Id: {self._id}, Name: {self.name}, Bbox: {self.bbox}, Source: {self.source}, Target: {self.target})"
+
+
+class TestElement(Element):
+    def __init__(self, _id, name, bbox, img, source=None, target=None):
+        super().__init__(_id, name, bbox, img, source, target)
+        self.name = name
 
 
 class GraphImage:

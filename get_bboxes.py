@@ -8,7 +8,7 @@ from utils import load_label_map, make_dir
 
 
 def process_image(image, width, height):
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert to RGB
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     if image.shape[:2] != (height, width):
         resized_image = cv2.resize(image, (width, height))
     input_tensor = tf.convert_to_tensor(image)
@@ -49,15 +49,13 @@ def detect_bboxes(img_path, model, label_map, confidence_threshold, input_width,
             bbox_info = (label_map[class_id], (int(x_min), int(y_min), int(x_max), int(y_max)))
             detected_data.append(bbox_info)
             cv2.rectangle(image, (int(x_min), int(y_min)), (int(x_max), int(y_max)), (0, 255, 0), 1)
-            cv2.putText(image, f"{label_map[class_id]}, {int(x_min), int(y_min), int(x_max), int(y_max)}", (int(x_min), int(y_min - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+            cv2.putText(image, f"{label_map[class_id]}, {int(x_min), int(y_min), int(x_max), int(y_max)}", (int(x_min), int(y_min - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.8,
                         (0, 255, 0), 1)
             if verbose:
-                print(f'Class: {label_map[class_id]}, Score: {score}, BBox: ({int(x_min), int(y_min), int(x_max), int(y_max)})')
+                print(f'Detected Elements:\nClass: {label_map[class_id]}, Score: {score}, BBox: ({int(x_min), int(y_min), int(x_max), int(y_max)})')
     plt.figure(figsize=(10, 10))
     make_dir('output')
-    # TODO name with time.time - img_path only for testing purposes
-    # cv2.imwrite(fr'output/detections_{time.time()}.jpg', image)
-    cv2.imwrite(fr'output/detections_{Path(img_path).stem}.jpg', image)
+    cv2.imwrite(fr'output/detections_{Path(img_path).stem}_{int(time.time())}.jpg', image)
 
     if verbose:
         plt.imshow(image)

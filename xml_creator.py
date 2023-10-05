@@ -1,23 +1,27 @@
-import xml.etree.ElementTree as ET
 from xml.dom import minidom
-import os
 from utils import make_dir
-from collections import defaultdict
-from config import ElementsType
+from enums import ElementsType
 import numpy as np
-import cv2
 import time
+import cv2
+import xml.etree.ElementTree as ET
+from pathlib import Path
+import logging
+
+logger = logging.getLogger()
 
 
 class XMLCreator:
     def __init__(self, elements, name, output_path, img_path):
+        self.save_arrow_imgs = False
         self.name = name
         self.img_path = img_path
         self.texts, self.arrows, self.inputs, self.decisions, self.knowledge_model, self.knowledge_source = self.split_elements(
             elements)
         self.output_path = self.create_output(output_path)
         self.crop_threshold = 10
-        self.objects = {e.id: e for e in self.arrows + self.inputs + self.decisions + self.knowledge_model + self.knowledge_source}
+        self.objects = {e.id: e for e in
+                        self.arrows + self.inputs + self.decisions + self.knowledge_model + self.knowledge_source}
 
         self.xmlns = {"": "https://www.omg.org/spec/DMN/20191111/MODEL/",
                       "dmndi": "https://www.omg.org/spec/DMN/20191111/DMNDI/",
@@ -28,13 +32,13 @@ class XMLCreator:
         ET.register_namespace("dmndi", self.xmlns["dmndi"])
         ET.register_namespace("dc", self.xmlns["dc"])
         ET.register_namespace("di", self.xmlns["di"])
-        # TODO delete arrow image saving
-        # for arrow in self.arrows:
-        #     image = cv2.imread(str(self.img_path), cv2.IMREAD_GRAYSCALE)
-        #     bbox = list(arrow.bbox)
-        #     crop_img = image[bbox[1] - self.crop_threshold: bbox[3] + self.crop_threshold,
-        #                bbox[0] - self.crop_threshold: bbox[2] + self.crop_threshold]
-        #     cv2.imwrite(rf'logs/arrows/arrow_{time.time()}.jpg', crop_img)
+        if self.save_arrow_imgs:
+            for arrow in self.arrows:
+                image = cv2.imread(str(self.img_path), cv2.IMREAD_GRAYSCALE)
+                bbox = list(arrow.bbox)
+                crop_img = image[bbox[1] - self.crop_threshold: bbox[3] + self.crop_threshold,
+                           bbox[0] - self.crop_threshold: bbox[2] + self.crop_threshold]
+                cv2.imwrite(rf'logs/arrows/arrow_{int(time.time())}.jpg', crop_img)
 
     def get_all_elements(self):
         return self.texts + self.arrows + self.inputs + self.decisions + self.knowledge_model + self.knowledge_source
@@ -64,7 +68,7 @@ class XMLCreator:
 
     def create_output(self, output):
         make_dir(output)
-        return output / f"{self.name}.xml"
+        return Path(output) / f"{self.name}.xml"
 
     @staticmethod
     def is_first_area_bigger(bbox1, bbox2):
@@ -80,14 +84,13 @@ class XMLCreator:
         return False
 
     @staticmethod
-    def is_bbox1_inside_bbox2(bbox1, bbox2):
+    def is_bbox1_inside_bbox2(bbox1: tuple, bbox2: tuple, threshold: int):
         """
         Bboxes have to be a tuple in order: x min, y min, x max, y max
         """
         x_min1, y_min1, x_max1, y_max1 = bbox1
         x_min2, y_min2, x_max2, y_max2 = bbox2
-
-        if x_min1 >= x_min2 and y_min1 >= y_min2 and x_max1 <= x_max2 and y_max1 <= y_max2:
+        if x_min1 + threshold >= x_min2 and y_min1 + threshold >= y_min2 and x_max1 <= x_max2 + threshold and y_max1 <= y_max2 + threshold:
             return True
         return False
 
@@ -97,45 +100,38 @@ class XMLCreator:
         for text in self.texts:
             for category in categories:
                 for element in category:
-                    if self.is_bbox1_inside_bbox2(text.bbox, element.bbox):
+                    if self.is_bbox1_inside_bbox2(text.bbox, element.bbox, 10):
                         bounded_text_elements_counter += 1
                         element.name = text.name
                         break
         if len(self.texts) == bounded_text_elements_counter:
-            print("ALL TEXTS FITTED")
             self.texts = []
         if bounded_text_elements_counter < len(self.texts):
-            raise ValueError(f"Not all text elements are bound to an element in {categories}")
+            logger.warning(f"Not all text elements are bound to an element in {categories}")
 
     def find_arrow_direction(self, img):
         # Convert the image to grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
-
         # Apply binary thresholding
         ret, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
-
         # Find contours
         contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
         # Assuming that the largest contour is the arrow
         cnt = max(contours, key=cv2.contourArea)
-
         # Flatten the contour array and use PCA to find the main direction
-        data = cnt.reshape(-1, 2).astype(np.float32)
+        data = np.vstack([cnt.reshape(-1, 2).astype(np.float32) for cnt in contours])
         mean, eigenvectors = cv2.PCACompute(data, mean=None)
-
         # The principal eigenvector gives the direction
         principal_eigenvector = eigenvectors[0]
-
         return principal_eigenvector
 
-    def find_nearest_elements(self, point, direction, elements):
+    def find_nearest_elements(self, point, direction, elements, angle_threshold=np.pi / 2, alpha=0.2):
         nearest_element_start = None
         nearest_element_end = None
         smallest_distance_start = np.inf
         smallest_distance_end = np.inf
 
-        # Add a variable to keep track of the overall nearest element
+        # Variable to keep track of the overall the nearest element
         nearest_element = None
         smallest_distance = np.inf
 
@@ -143,41 +139,42 @@ class XMLCreator:
             # Calculate the center of the element's bbox
             center = ((element.bbox[0] + element.bbox[2]) / 2,
                       (element.bbox[1] + element.bbox[3]) / 2)
-
             # Calculate the vector from the point to the element
-            vector = (center[0] - point[0], center[1] - point[1])
-
+            vector = np.array([center[0] - point[0], center[1] - point[1]])
+            # Normalize the direction and vector
+            norm_direction = direction / np.linalg.norm(direction)
+            norm_vector = vector / np.linalg.norm(vector)
             # Calculate the angle to the element
-            angle = np.arccos(np.dot(direction, vector) /
-                              (np.linalg.norm(direction) * np.linalg.norm(vector)))
-
+            cos_angle = np.dot(norm_direction, norm_vector)
+            cos_angle = np.clip(cos_angle, -1.0, 1.0)  # Ensuring the value is in the range [-1, 1]
+            angle = np.arccos(cos_angle)
             # Calculate the distance to the element
             distance = np.linalg.norm(vector)
-
+            # Weighted distance metric
+            weighted_distance = distance * (1 + alpha * np.abs(angle))
             # Keep track of the nearest element overall, regardless of direction
-            if distance < smallest_distance:
-                smallest_distance = distance
-                nearest_element = element
-
-            # If the angle is too large, ignore the element
-            if np.abs(angle) > np.pi / 2:
+            if weighted_distance < smallest_distance:
+                smallest_distance = weighted_distance
+                nearest_element = element.id  # Assuming each element has an 'id' attribute
+            # Skip the element if the angle is outside the threshold
+            if np.abs(angle) > angle_threshold:
                 continue
-
-            # Update the nearest element if this element is closer in the direction
-            if vector[0] < 0 and distance < smallest_distance_start:
-                smallest_distance_start = distance
-                nearest_element_start = element
-            elif vector[0] > 0 and distance < smallest_distance_end:
-                smallest_distance_end = distance
-                nearest_element_end = element
-
-            # If no elements were found in the specified direction, use the overall nearest element
+            # Update the nearest elements in the direction
+            if np.dot(norm_direction, norm_vector) > 0:  # In the same general direction
+                if weighted_distance < smallest_distance_end:
+                    smallest_distance_end = weighted_distance
+                    nearest_element_end = element.id  # Assuming each element has an 'id' attribute
+            else:  # In the opposite general direction
+                if weighted_distance < smallest_distance_start:
+                    smallest_distance_start = weighted_distance
+                    nearest_element_start = element.id  # Assuming each element has an 'id' attribute
+        # Fallback logic
         if nearest_element_start is None:
             nearest_element_start = nearest_element
         if nearest_element_end is None:
             nearest_element_end = nearest_element
 
-        return nearest_element_start.id, nearest_element_end.id
+        return nearest_element_start, nearest_element_end
 
     def bound_arrow_elements(self):
         # List of elements to bind arrows to
@@ -188,16 +185,12 @@ class XMLCreator:
             bbox = list(arrow.bbox)
             crop_img = image[bbox[1] - self.crop_threshold: bbox[3] + self.crop_threshold,
                        bbox[0] - self.crop_threshold: bbox[2] + self.crop_threshold]
-
             # Find the direction of the arrow
             direction = self.find_arrow_direction(crop_img)
-
             # Use the midpoint of the arrow's bounding box as the starting point
             mid_point = ((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2)
-
             # Find the nearest elements to the start and end of the arrow
             nearest_to_start, nearest_to_end = self.find_nearest_elements(mid_point, direction, elements_to_bind)
-
             # Bound the arrow to the nearest elements
             arrow.source = nearest_to_start
             arrow.target = nearest_to_end
@@ -219,11 +212,13 @@ class XMLCreator:
             elements_map[element._id] = {"xml_element": input_data, "bbox": element.bbox}
 
         for element in self.knowledge_model:
-            knowledge_model = ET.SubElement(definitions, "businessKnowledgeModel", attrib={"id": element._id, "name": element.name})
+            knowledge_model = ET.SubElement(definitions, "businessKnowledgeModel",
+                                            attrib={"id": element._id, "name": element.name})
             elements_map[element._id] = {"xml_element": knowledge_model, "bbox": element.bbox}
 
         for element in self.knowledge_source:
-            knowledge_source = ET.SubElement(definitions, "knowledgeSource", attrib={"id": element._id, "name": element.name})
+            knowledge_source = ET.SubElement(definitions, "knowledgeSource",
+                                             attrib={"id": element._id, "name": element.name})
             elements_map[element._id] = {"xml_element": knowledge_source, "bbox": element.bbox}
 
         for element in self.arrows:
@@ -291,38 +286,17 @@ class XMLCreator:
         pretty_xml = pretty_xml.replace('xmlns:di="http://www.omg.org/spec/DMN/20191111/DI/"', '')
 
         with open(self.output_path, 'w') as f:
-            print(f"Creating {self.output_path}")
+            print(f"Output created successfully: {self.output_path}")
             f.write(pretty_xml)
 
     def add_dmn_shape(self, parent, element_id, bbox):
-        dmn_shape = ET.SubElement(parent, "dmndi:DMNShape", attrib={"id": "DMNShape_" + element_id, "dmnElementRef": element_id})
+        dmn_shape = ET.SubElement(parent, "dmndi:DMNShape",
+                                  attrib={"id": "DMNShape_" + element_id, "dmnElementRef": element_id})
         x1, y1, x2, y2 = bbox
         width = abs(x2 - x1)
         height = abs(y2 - y1)
-        ET.SubElement(dmn_shape, "dc:Bounds", attrib={"x": str(x1), "y": str(y1), "width": str(width), "height": str(height)})
-
-    # def add_waypoints(self, parent, source_bbox, target_bbox):
-    #     sx1, sy1, sx2, sy2 = source_bbox
-    #     tx1, ty1, tx2, ty2 = target_bbox
-    #
-    #     source_center = ((sx1 + sx2) / 2, (sy1 + sy2) / 2)
-    #     target_center = ((tx1 + tx2) / 2, (ty1 + ty2) / 2)
-    #
-    #     if source_center[1] < target_center[1]:  # If the source is above the target
-    #         source_point = (source_center[0], sy2)
-    #         target_point = (target_center[0], ty1)
-    #     elif source_center[1] > target_center[1]:  # If the source is below the target
-    #         source_point = (source_center[0], sy1)
-    #         target_point = (target_center[0], ty2)
-    #     elif source_center[0] < target_center[0]:  # If the source is to the left of the target
-    #         source_point = (sx2, source_center[1])
-    #         target_point = (tx1, target_center[1])
-    #     else:  # If the source is to the right of the target
-    #         source_point = (sx1, source_center[1])
-    #         target_point = (tx2, target_center[1])
-    #
-    #     ET.SubElement(parent, "di:waypoint", attrib={"x": str(source_point[0]), "y": str(source_point[1])})
-    #     ET.SubElement(parent, "di:waypoint", attrib={"x": str(target_point[0]), "y": str(target_point[1])})
+        ET.SubElement(dmn_shape, "dc:Bounds",
+                      attrib={"x": str(x1), "y": str(y1), "width": str(width), "height": str(height)})
 
     def add_waypoints(self, parent, source_bbox, target_bbox):
         sx1, sy1, sx2, sy2 = source_bbox
